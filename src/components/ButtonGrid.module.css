@@ -1,0 +1,83 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+}
+
+.button {
+  background: var(--button-bg);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 12px;
+  padding: 1.1rem 0.5rem;
+  font-size: 1.3rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  outline: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.button:hover {
+  background: var(--button-hover);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.button:active {
+  background: var(--button-active);
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.operator {
+  background: var(--operator-bg);
+  color: white;
+}
+
+.operator:hover {
+  background: var(--operator-hover);
+}
+
+.operator:active {
+  background: #a52a40;
+}
+
+.equals {
+  background: var(--equals-bg);
+  color: var(--equals-text);
+  font-weight: 700;
+  grid-row: span 2;
+}
+
+.equals:hover {
+  background: var(--equals-hover);
+}
+
+.equals:active {
+  background: #2a9070;
+}
+
+.clear {
+  background: var(--clear-bg);
+  color: white;
+  font-weight: 600;
+}
+
+.clear:hover {
+  background: var(--clear-hover);
+}
+
+.clear:active {
+  background: #cc4444;
+}
+
+.span2 {
+  grid-column: span 2;
+}
+
+.span1rows2 {
+  grid-row: span 2;
+}
