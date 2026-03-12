@@ -1,0 +1,486 @@
+'Error') return;
+    if (currentInput.startsWith('-')) {
+      setCurrentInput(currentInput.slice(1));
+    } else {
+      setCurrentInput('-' + currentInput);
+    }
+  };
+
+  const handlePercent = () => {
+    const current = parseFloat(currentInput);
+    if (isNaN(current)) return;
+    const result = current / 100;
+    setCurrentInput(String(result));
+  };
+
+  const handleHistorySelect = (record: CalculationRecord) => {
+    setCurrentInput(String(record.result));
+    setPreviousInput('');
+    setOperator('');
+    setExpression(
+      `${record.operand1} ${formatDisplayOperator(record.operator)} ${record.operand2} =`
+    );
+    setResetNext(true);
+  };
+
+  return (
+    <div className={styles.wrapper}>
+      <div className={styles.calculator}>
+        <Display expression={expression} result={currentInput} />
+        <ButtonGrid
+          onInput={handleInput}
+          onOperator={handleOperator}
+          onEquals={handleEquals}
+          onClear={handleClear}
+          onDelete={handleDelete}
+          onToggleSign={handleToggleSign}
+          onPercent={handlePercent}
+        />
+      </div>
+      <History history={history} onSelect={handleHistorySelect} />
+    </div>
+  );
+};
+
+export default Calculator;
+</file>
+
+<file path="src/components/Calculator.module.css">
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+.calculator {
+  background: var(--bg-card);
+  border-radius: 20px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+}
+</file>
+
+<file path="Dockerfile">
+FROM node:18-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install --legacy-peer-deps
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm run build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+
+# Set the correct permission for prerender cache
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
+
+# Automatically leverage output traces to reduce image size
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
+</file>
+
+<file path="next.config.js">
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',
+  serverExternalPackages: ['typeorm', 'better-sqlite3', 'reflect-metadata'],
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push('better-sqlite3');
+    }
+    return config;
+  },
+};
+
+module.exports = nextConfig;
+</file>
+
+<file path="src/lib/calculatorLogic.ts">
+/**
+ * Pure calculation logic extracted for testability.
+ */
+export function calculate(a: number, operator: string, b: number): number | null {
+  switch (operator) {
+    case '+':
+      return a + b;
+    case '-':
+      return a - b;
+    case '*':
+      return a * b;
+    case '/':
+      if (b === 0) return null;
+      return a / b;
+    default:
+      return null;
+  }
+}
+
+export function formatOperator(op: string): string {
+  switch (op) {
+    case '+': return '+';
+    case '-': return '−';
+    case '*': return '×';
+    case '/': return '÷';
+    default: return op;
+  }
+}
+
+export function formatNumber(n: number): string {
+  const str = String(n);
+  if (str.length > 12) {
+    return n.toPrecision(8);
+  }
+  return str;
+}
+</file>
+
+<file path="jest.config.js">
+/** @type {import('jest').Config} */
+const config = {
+  testEnvironment: 'node',
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', {
+      tsconfig: 'tsconfig.test.json',
+    }],
+  },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
+};
+
+module.exports = config;
+</file>
+
+<file path="tsconfig.test.json">
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "isolatedModules": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "__tests__/**/*.ts", "__tests__/**/*.tsx"]
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "nextjs-calculator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest"
+  },
+  "dependencies": {
+    "next": "14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typeorm": "^0.3.20",
+    "better-sqlite3": "^11.1.2",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.11",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.3",
+    "typescript": "^5.5.3"
+  }
+}
+</file>
+
+<file path="__tests__/calculatorLogic.test.ts">
+import { calculate, formatOperator, formatNumber } from '@/lib/calculatorLogic';
+
+describe('calculate', () => {
+  test('adds two numbers', () => {
+    expect(calculate(2, '+', 3)).toBe(5);
+  });
+
+  test('adds negative numbers', () => {
+    expect(calculate(-5, '+', 3)).toBe(-2);
+  });
+
+  test('adds decimals', () => {
+    expect(calculate(0.1, '+', 0.2)).toBeCloseTo(0.3);
+  });
+
+  test('subtracts two numbers', () => {
+    expect(calculate(10, '-', 4)).toBe(6);
+  });
+
+  test('subtracts resulting in negative', () => {
+    expect(calculate(3, '-', 10)).toBe(-7);
+  });
+
+  test('multiplies two numbers', () => {
+    expect(calculate(6, '*', 7)).toBe(42);
+  });
+
+  test('multiplies by zero', () => {
+    expect(calculate(100, '*', 0)).toBe(0);
+  });
+
+  test('multiplies negative numbers', () => {
+    expect(calculate(-3, '*', -4)).toBe(12);
+  });
+
+  test('divides two numbers', () => {
+    expect(calculate(10, '/', 2)).toBe(5);
+  });
+
+  test('divides with decimal result', () => {
+    expect(calculate(1, '/', 3)).toBeCloseTo(0.3333333333);
+  });
+
+  test('returns null for division by zero', () => {
+    expect(calculate(10, '/', 0)).toBeNull();
+  });
+
+  test('returns null for unknown operator', () => {
+    expect(calculate(1, '^', 2)).toBeNull();
+  });
+
+  test('returns null for empty operator', () => {
+    expect(calculate(1, '', 2)).toBeNull();
+  });
+
+  test('handles large numbers', () => {
+    expect(calculate(1e10, '+', 1e10)).toBe(2e10);
+  });
+
+  test('handles very small numbers', () => {
+    expect(calculate(1e-10, '*', 1e-10)).toBeCloseTo(1e-20);
+  });
+});
+
+describe('formatOperator', () => {
+  test('formats addition', () => {
+    expect(formatOperator('+')).toBe('+');
+  });
+
+  test('formats subtraction to minus sign', () => {
+    expect(formatOperator('-')).toBe('−');
+  });
+
+  test('formats multiplication to times sign', () => {
+    expect(formatOperator('*')).toBe('×');
+  });
+
+  test('formats division to division sign', () => {
+    expect(formatOperator('/')).toBe('÷');
+  });
+
+  test('returns unknown operator as-is', () => {
+    expect(formatOperator('^')).toBe('^');
+  });
+});
+
+describe('formatNumber', () => {
+  test('formats normal number', () => {
+    expect(formatNumber(42)).toBe('42');
+  });
+
+  test('formats zero', () => {
+    expect(formatNumber(0)).toBe('0');
+  });
+
+  test('formats negative number', () => {
+    expect(formatNumber(-5)).toBe('-5');
+  });
+
+  test('formats decimal number', () => {
+    expect(formatNumber(3.14)).toBe('3.14');
+  });
+
+  test('truncates very long numbers', () => {
+    const longNum = 1234567890123.456;
+    const result = formatNumber(longNum);
+    expect(result.length).toBeLessThanOrEqual(15);
+  });
+
+  test('formats small number normally', () => {
+    expect(formatNumber(1)).toBe('1');
+  });
+});
+</file>
+
+<file path="__tests__/apiValidation.test.ts">
+describe('API validation logic', () => {
+  function validateCalculationInput(body: Record<string, unknown>): string | null {
+    const { operand1, operator, operand2, result } = body;
+    if (
+      operand1 === undefined ||
+      operator === undefined ||
+      operand2 === undefined ||
+      result === undefined
+    ) {
+      return 'Missing required fields';
+    }
+    if (typeof operator !== 'string' || !['/', '*', '+', '-'].includes(operator)) {
+      return 'Invalid operator';
+    }
+    if (isNaN(Number(operand1)) || isNaN(Number(operand2)) || isNaN(Number(result))) {
+      return 'Invalid number';
+    }
+    return null;
+  }
+
+  test('returns null for valid input', () => {
+    expect(
+      validateCalculationInput({
+        operand1: 1,
+        operator: '+',
+        operand2: 2,
+        result: 3,
+      })
+    ).toBeNull();
+  });
+
+  test('returns error for missing operand1', () => {
+    expect(
+      validateCalculationInput({
+        operator: '+',
+        operand2: 2,
+        result: 3,
+      })
+    ).toBe('Missing required fields');
+  });
+
+  test('returns error for missing operator', () => {
+    expect(
+      validateCalculationInput({
+        operand1: 1,
+        operand2: 2,
+        result: 3,
+      })
+    ).toBe('Missing required fields');
+  });
+
+  test('returns error for missing operand2', () => {
+    expect(
+      validateCalculationInput({
+        operand1: 1,
+        operator: '+',
+        result: 3,
+      })
+    ).toBe('Missing required fields');
+  });
+
+  test('returns error for missing result', () => {
+    expect(
+      validateCalculationInput({
+        operand1: 1,
+        operator: '+',
+        operand2: 2,
+      })
+    ).toBe('Missing required fields');
+  });
+
+  test('returns error for invalid operator', () => {
+    expect(
+      validateCalculationInput({
+        operand1: 1,
+        operator: '^',
+        operand2: 2,
+        result: 3,
+      })
+    ).toBe('Invalid operator');
+  });
+
+  test('accepts all valid operators', () => {
+    for (const op of ['+', '-', '*', '/']) {
+      expect(
+        validateCalculationInput({
+          operand1: 1,
+          operator: op,
+          operand2: 2,
+          result: 3,
+        })
+      ).toBeNull();
+    }
+  });
+
+  test('accepts string numbers', () => {
+    expect(
+      validateCalculationInput({
+        operand1: '1',
+        operator: '+',
+        operand2: '2',
+        result: '3',
+      })
+    ).toBeNull();
+  });
+
+  test('rejects NaN values', () => {
+    expect(
+      validateCalculationInput({
+        operand1: 'abc',
+        operator: '+',
+        operand2: 2,
+        result: 3,
+      })
+    ).toBe('Invalid number');
+  });
+
+  test('accepts zero values', () => {
+    expect(
+      validateCalculationInput({
+        operand1: 0,
+        operator: '*',
+        operand2: 0,
+        result: 0,
+      })
+    ).toBeNull();
+  });
+
+  test('accepts negative values', () => {
+    expect
